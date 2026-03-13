@@ -1,319 +1,163 @@
-import { useState, useEffect } from "react";
-import { Heart, PenLine, Sparkles, Trash2, Plus, BookHeart, Download } from "lucide-react";
-import { EditorArea } from "@/components/EditorArea";
-import { showSuccess, showError } from "@/utils/toast";
+import { useState, useMemo, useEffect } from "react";
+import { Heart, BookHeart, Menu, X } from "lucide-react";
+import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
+
+// Automatically import all markdown files from the chapters directory
+const chapterFiles = import.meta.glob('/src/content/chapters/*.md', { 
+  query: '?raw', 
+  import: 'default', 
+  eager: true 
+});
 
 interface Chapter {
   id: string;
+  filename: string;
   title: string;
   content: string;
 }
 
 const Index = () => {
-  // Initialize state from localStorage or use defaults
-  const [draftContent, setDraftContent] = useState(() => {
-    return localStorage.getItem("tanya-draft") || "";
-  });
-  
-  const [chapters, setChapters] = useState<Chapter[]>(() => {
-    const saved = localStorage.getItem("tanya-chapters");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {
-        console.error("Error loading chapters", e);
-      }
-    }
-    return [{ id: "1", title: "Chapter 1: The Beginning", content: "" }];
-  });
-  
-  const [activeChapterId, setActiveChapterId] = useState<string>(() => {
-    return localStorage.getItem("tanya-active-chapter") || "1";
-  });
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Auto-save effects
-  useEffect(() => {
-    localStorage.setItem("tanya-draft", draftContent);
-  }, [draftContent]);
+  // Parse and sort the chapters
+  const chapters: Chapter[] = useMemo(() => {
+    return Object.entries(chapterFiles)
+      .map(([path, content]) => {
+        const filename = path.split('/').pop() || '';
+        const rawContent = content as string;
+        
+        // Extract the title from the first H1 heading (# Title)
+        const match = rawContent.match(/^#\s+(.*)/m);
+        let title = match ? match[1] : filename.replace('.md', '').replace(/^\d+-/, '').replace(/-/g, ' ');
 
-  useEffect(() => {
-    localStorage.setItem("tanya-chapters", JSON.stringify(chapters));
-  }, [chapters]);
-
-  useEffect(() => {
-    localStorage.setItem("tanya-active-chapter", activeChapterId);
-  }, [activeChapterId]);
-
-  const activeChapter = chapters.find((c) => c.id === activeChapterId) || chapters[0];
-
-  const handleApproveDraft = () => {
-    if (!draftContent.trim()) {
-      showError("There are no words to save yet.");
-      return;
-    }
-
-    setChapters((prev) =>
-      prev.map((chap) => {
-        if (chap.id === activeChapterId) {
-          const newContent = chap.content
-            ? `${chap.content}\n\n${draftContent}`
-            : draftContent;
-          return { ...chap, content: newContent };
-        }
-        return chap;
+        return {
+          id: filename,
+          filename,
+          title,
+          content: rawContent,
+        };
       })
-    );
+      .sort((a, b) => a.filename.localeCompare(b.filename)); // Sort alphabetically by filename (01-, 02-, etc.)
+  }, []);
 
-    setDraftContent(""); // Clear draft after moving
-    showSuccess(`Your feelings have been added to ${activeChapter.title}.`);
-  };
+  const [activeChapterId, setActiveChapterId] = useState<string>(
+    chapters.length > 0 ? chapters[0].id : ""
+  );
 
-  const handleClearDraft = () => {
-    if (confirm("Are you sure you want to discard these words?")) {
-      setDraftContent("");
-    }
-  };
+  const activeChapter = chapters.find((c) => c.id === activeChapterId);
 
-  const handleAddChapter = () => {
-    const newId = Date.now().toString();
-    const newChapter = {
-      id: newId,
-      title: `Chapter ${chapters.length + 1}`,
-      content: "",
+  // Close sidebar on mobile when a chapter is selected
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) setIsSidebarOpen(false);
     };
-    setChapters([...chapters, newChapter]);
-    setActiveChapterId(newId);
-    showSuccess("New chapter created.");
-  };
-
-  const handleDeleteChapter = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (chapters.length === 1) {
-      showError("Your story needs at least one chapter.");
-      return;
-    }
-    if (confirm("Are you sure you want to delete this chapter entirely?")) {
-      const newChapters = chapters.filter((c) => c.id !== id);
-      setChapters(newChapters);
-      if (activeChapterId === id) {
-        setActiveChapterId(newChapters[0].id);
-      }
-      showSuccess("Chapter removed.");
-    }
-  };
-
-  const handleUpdateChapterContent = (content: string) => {
-    setChapters((prev) =>
-      prev.map((chap) =>
-        chap.id === activeChapterId ? { ...chap, content } : chap
-      )
-    );
-  };
-
-  const handleUpdateChapterTitle = (id: string, newTitle: string) => {
-    setChapters((prev) =>
-      prev.map((chap) => (chap.id === id ? { ...chap, title: newTitle } : chap))
-    );
-  };
-
-  const handleExportStory = () => {
-    let fileContent = "# For Tanya\n\n";
-    
-    chapters.forEach((chap) => {
-      fileContent += `## ${chap.title}\n\n`;
-      fileContent += chap.content ? `${chap.content}\n\n` : "*Empty chapter*\n\n";
-      fileContent += "---\n\n";
-    });
-
-    const blob = new Blob([fileContent], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "For_Tanya_Story.md";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    showSuccess("Story downloaded to your device.");
-  };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   return (
-    <div className="min-h-screen bg-rose-50 flex flex-col font-sans selection:bg-rose-200">
+    <div className="min-h-screen bg-rose-50/50 flex flex-col font-sans selection:bg-rose-200">
       {/* Top Navigation */}
-      <header className="px-8 py-5 flex items-center justify-between bg-white/80 backdrop-blur-md shadow-sm border-b border-rose-100 z-10">
+      <header className="px-6 py-4 flex items-center justify-between bg-white/80 backdrop-blur-md shadow-sm border-b border-rose-100 sticky top-0 z-30">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-rose-100 text-rose-600 rounded-xl">
-            <Heart size={24} fill="currentColor" />
+          <button 
+            onClick={() => setIsSidebarOpen(true)}
+            className="lg:hidden p-2 -ml-2 text-rose-600 hover:bg-rose-50 rounded-full"
+          >
+            <Menu size={24} />
+          </button>
+          <div className="p-2 bg-rose-100 text-rose-600 rounded-xl hidden sm:block">
+            <Heart size={20} fill="currentColor" />
           </div>
-          <h1 className="text-2xl font-bold text-rose-950 tracking-tight font-serif italic">
+          <h1 className="text-xl sm:text-2xl font-bold text-rose-950 tracking-tight font-serif italic">
             For Tanya
           </h1>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="hidden sm:block text-sm font-medium text-rose-400 bg-rose-100/50 px-4 py-2 rounded-full">
-            Holding onto every word...
-          </div>
-          <button
-            onClick={handleExportStory}
-            className="flex items-center gap-2 px-4 py-2 bg-white text-rose-600 hover:bg-rose-50 border border-rose-200 text-sm font-semibold rounded-full transition-all active:scale-95 shadow-sm"
-            title="Download your story as a file"
-          >
-            <Download size={16} />
-            <span>Download</span>
-          </button>
+        <div className="text-sm font-medium text-rose-400 bg-rose-100/50 px-4 py-1.5 rounded-full flex items-center gap-2">
+          <BookHeart size={16} />
+          <span className="hidden sm:inline">A collection of unspoken words</span>
         </div>
       </header>
 
-      {/* Main Workspace */}
-      <main className="flex-1 p-4 lg:p-8 flex flex-col lg:flex-row gap-6 h-[calc(100vh-88px)]">
-        {/* Left Column: Drafts */}
-        <div className="w-full lg:w-5/12 h-full min-h-[400px]">
-          <EditorArea
-            title="Unspoken Words"
-            value={draftContent}
-            onChange={setDraftContent}
-            icon={<PenLine size={20} />}
-            placeholder="What are you feeling right now? What do you wish you could tell her?"
-            className="border-rose-200 shadow-rose-100/50"
-            actions={
-              <>
-                <button
-                  onClick={handleClearDraft}
-                  className="p-2 text-rose-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
-                  title="Discard words"
-                >
-                  <Trash2 size={18} />
-                </button>
-                <button
-                  onClick={handleApproveDraft}
-                  disabled={!draftContent.trim()}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-rose-500 hover:bg-rose-600 disabled:bg-rose-200 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-full transition-all active:scale-95 shadow-sm shadow-rose-200"
-                >
-                  <span>Keep Memory</span>
-                  <Heart
-                    size={16}
-                    className={draftContent.trim() ? "animate-pulse" : ""}
-                  />
-                </button>
-              </>
-            }
+      <div className="flex flex-1 max-w-6xl w-full mx-auto relative">
+        {/* Mobile Sidebar Overlay */}
+        {isSidebarOpen && (
+          <div 
+            className="fixed inset-0 bg-rose-950/20 backdrop-blur-sm z-40 lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
           />
-        </div>
+        )}
 
-        {/* Right Column: Final Version (Chapters) */}
-        <div className="flex-1 h-full min-h-[400px] flex flex-col bg-white/90 backdrop-blur-sm rounded-3xl shadow-sm border border-rose-200 overflow-hidden transition-all duration-300 hover:shadow-md">
-          {/* Header / Toolbar */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-rose-100 bg-rose-50/50">
-            <div className="flex items-center gap-2">
-              <span className="text-rose-500">
-                <Sparkles size={20} />
-              </span>
-              <h2 className="text-lg font-semibold text-rose-900">
-                The Story of Us
-              </h2>
+        {/* Chapters Sidebar */}
+        <aside className={cn(
+          "fixed lg:sticky top-[73px] h-[calc(100vh-73px)] w-72 bg-white lg:bg-transparent border-r border-rose-100 shadow-xl lg:shadow-none z-50 transform transition-transform duration-300 ease-in-out lg:transform-none overflow-y-auto",
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}>
+          <div className="p-6">
+            <div className="flex items-center justify-between mb-6 lg:mb-8">
+              <h2 className="text-sm uppercase tracking-widest font-bold text-rose-400">Chapters</h2>
+              <button 
+                onClick={() => setIsSidebarOpen(false)}
+                className="lg:hidden text-rose-400 hover:text-rose-600"
+              >
+                <X size={20} />
+              </button>
             </div>
-            <button
-              onClick={handleAddChapter}
-              className="flex items-center gap-1.5 px-4 py-2 bg-rose-100 text-rose-600 hover:bg-rose-200 hover:text-rose-700 text-sm font-medium rounded-full transition-colors"
-            >
-              <Plus size={16} />
-              <span>New Chapter</span>
-            </button>
-          </div>
-
-          <div className="flex flex-1 overflow-hidden flex-col md:flex-row">
-            {/* Chapters Sidebar */}
-            <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-rose-100 bg-rose-50/30 overflow-y-auto p-4 flex flex-col gap-3">
-              {chapters.map((chap) => (
-                <div
-                  key={chap.id}
-                  onClick={() => setActiveChapterId(chap.id)}
-                  className={cn(
-                    "group relative p-4 rounded-2xl cursor-pointer transition-all border text-left flex flex-col gap-1",
-                    activeChapterId === chap.id
-                      ? "bg-rose-500 text-white border-rose-600 shadow-md shadow-rose-200/50"
-                      : "bg-white text-rose-900 border-rose-100 hover:border-rose-300 hover:shadow-sm"
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <input
-                      value={chap.title}
-                      onChange={(e) =>
-                        handleUpdateChapterTitle(chap.id, e.target.value)
-                      }
-                      onClick={(e) => e.stopPropagation()}
-                      className={cn(
-                        "w-full bg-transparent outline-none font-semibold truncate",
-                        activeChapterId === chap.id
-                          ? "text-white placeholder:text-rose-200"
-                          : "text-rose-900 placeholder:text-rose-300"
-                      )}
-                      placeholder="Chapter title..."
-                    />
-                    {chapters.length > 1 && (
-                      <button
-                        onClick={(e) => handleDeleteChapter(chap.id, e)}
-                        className={cn(
-                          "opacity-0 group-hover:opacity-100 p-1.5 rounded-full transition-all flex-shrink-0",
-                          activeChapterId === chap.id
-                            ? "hover:bg-rose-600 text-rose-200 hover:text-white"
-                            : "hover:bg-rose-100 text-rose-300 hover:text-rose-600"
-                        )}
-                        title="Delete Chapter"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                  <div
+            
+            <nav className="flex flex-col gap-2">
+              {chapters.length === 0 ? (
+                <p className="text-sm text-rose-300 italic">No chapters yet.</p>
+              ) : (
+                chapters.map((chap, index) => (
+                  <button
+                    key={chap.id}
+                    onClick={() => {
+                      setActiveChapterId(chap.id);
+                      setIsSidebarOpen(false);
+                    }}
                     className={cn(
-                      "text-xs font-medium flex items-center gap-1",
+                      "text-left px-4 py-3 rounded-xl transition-all duration-200 group flex items-start gap-3",
                       activeChapterId === chap.id
-                        ? "text-rose-100"
-                        : "text-rose-400"
+                        ? "bg-rose-500 text-white shadow-md shadow-rose-200"
+                        : "hover:bg-rose-100/50 text-rose-900"
                     )}
                   >
-                    <BookHeart size={12} />
-                    {
-                      chap.content
-                        .trim()
-                        .split(/\s+/)
-                        .filter((w) => w.length > 0).length
-                    }{" "}
-                    words
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Chapter Editor Space */}
-            <div className="flex-1 flex flex-col bg-white">
-              <div className="flex-1 p-6 md:p-8">
-                <textarea
-                  value={activeChapter?.content || ""}
-                  onChange={(e) => handleUpdateChapterContent(e.target.value)}
-                  placeholder="The pages of your love story will be woven together here..."
-                  className="w-full h-full resize-none outline-none text-lg leading-relaxed text-slate-800 font-serif placeholder:text-rose-300 bg-transparent selection:bg-rose-200"
-                  spellCheck={false}
-                />
-              </div>
-
-              {/* Word Count Footer */}
-              <div className="px-6 py-3 border-t border-rose-50 bg-rose-50/30 text-xs font-medium text-rose-400 flex justify-end">
-                {
-                  (activeChapter?.content || "")
-                    .trim()
-                    .split(/\s+/)
-                    .filter((word) => word.length > 0).length
-                }{" "}
-                words in {activeChapter?.title || "this chapter"}
-              </div>
-            </div>
+                    <span className={cn(
+                      "text-xs font-bold mt-1",
+                      activeChapterId === chap.id ? "text-rose-200" : "text-rose-400 group-hover:text-rose-500"
+                    )}>
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <span className="font-serif font-medium leading-snug">
+                      {chap.title.replace(/^Chapter \d+:\s*/, '')}
+                    </span>
+                  </button>
+                ))
+              )}
+            </nav>
           </div>
-        </div>
-      </main>
+        </aside>
+
+        {/* Main Reading Area */}
+        <main className="flex-1 min-w-0 bg-white shadow-sm lg:my-6 lg:mr-6 rounded-none lg:rounded-3xl border-x lg:border border-rose-100 min-h-[calc(100vh-73px)] lg:min-h-0">
+          <div className="max-w-3xl mx-auto px-6 py-12 sm:px-12 sm:py-16 md:px-16 md:py-20 h-full">
+            {activeChapter ? (
+              <article className="prose prose-rose prose-slate lg:prose-lg max-w-none prose-headings:font-serif prose-headings:font-medium prose-p:font-serif prose-p:leading-relaxed prose-p:text-slate-700">
+                <ReactMarkdown>
+                  {activeChapter.content}
+                </ReactMarkdown>
+              </article>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-rose-300 space-y-4">
+                <BookHeart size={48} className="opacity-50" />
+                <p className="font-serif text-lg text-center">Your story is waiting to be written...</p>
+                <p className="text-sm opacity-75">Add markdown files to the <code className="bg-rose-50 px-2 py-1 rounded">src/content/chapters</code> folder.</p>
+              </div>
+            )}
+          </div>
+        </main>
+      </div>
     </div>
   );
 };
