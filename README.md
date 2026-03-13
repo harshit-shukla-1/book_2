@@ -1,3 +1,3 @@
-# Welcome to Novelizer
+# For Tanya
 
-A split-pane book writing application that lets you easily manage your rough drafts and final manuscript in one place.
+A beautifully themed split-pane writing application, created to collect unspoken thoughts and weave them into a single, cohesive love story.

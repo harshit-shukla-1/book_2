@@ -23,15 +23,15 @@ export const EditorArea = ({
   return (
     <div
       className={cn(
-        "flex flex-col h-full bg-white rounded-3xl shadow-sm border border-stone-200 overflow-hidden transition-all duration-300 hover:shadow-md",
+        "flex flex-col h-full bg-white/90 backdrop-blur-sm rounded-3xl shadow-sm border border-rose-100 overflow-hidden transition-all duration-300 hover:shadow-md",
         className
       )}
     >
       {/* Header / Toolbar */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-stone-100 bg-stone-50/50">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-rose-100 bg-rose-50/50">
         <div className="flex items-center gap-2">
-          {icon && <span className="text-stone-500">{icon}</span>}
-          <h2 className="text-lg font-semibold text-stone-800">{title}</h2>
+          {icon && <span className="text-rose-400">{icon}</span>}
+          <h2 className="text-lg font-semibold text-rose-900">{title}</h2>
         </div>
         <div className="flex items-center gap-2">{actions}</div>
       </div>
@@ -42,13 +42,13 @@ export const EditorArea = ({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="w-full h-full resize-none outline-none text-lg leading-relaxed text-stone-800 font-serif placeholder:text-stone-300 bg-transparent"
+          className="w-full h-full resize-none outline-none text-lg leading-relaxed text-slate-800 font-serif placeholder:text-rose-300 bg-transparent selection:bg-rose-200"
           spellCheck={false}
         />
       </div>
       
       {/* Word Count Footer */}
-      <div className="px-6 py-3 border-t border-stone-50 bg-stone-50/30 text-xs font-medium text-stone-400 flex justify-end">
+      <div className="px-6 py-3 border-t border-rose-50 bg-rose-50/30 text-xs font-medium text-rose-400 flex justify-end">
         {value.trim().split(/\s+/).filter((word) => word.length > 0).length} words
       </div>
     </div>
