@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Heart, PenLine, Sparkles, Trash2, Plus, BookHeart } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Heart, PenLine, Sparkles, Trash2, Plus, BookHeart, Download } from "lucide-react";
 import { EditorArea } from "@/components/EditorArea";
 import { showSuccess, showError } from "@/utils/toast";
 import { cn } from "@/lib/utils";
@@ -11,11 +11,39 @@ interface Chapter {
 }
 
 const Index = () => {
-  const [draftContent, setDraftContent] = useState("");
-  const [chapters, setChapters] = useState<Chapter[]>([
-    { id: "1", title: "Chapter 1: The Beginning", content: "" }
-  ]);
-  const [activeChapterId, setActiveChapterId] = useState<string>("1");
+  // Initialize state from localStorage or use defaults
+  const [draftContent, setDraftContent] = useState(() => {
+    return localStorage.getItem("tanya-draft") || "";
+  });
+  
+  const [chapters, setChapters] = useState<Chapter[]>(() => {
+    const saved = localStorage.getItem("tanya-chapters");
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        console.error("Error loading chapters", e);
+      }
+    }
+    return [{ id: "1", title: "Chapter 1: The Beginning", content: "" }];
+  });
+  
+  const [activeChapterId, setActiveChapterId] = useState<string>(() => {
+    return localStorage.getItem("tanya-active-chapter") || "1";
+  });
+
+  // Auto-save effects
+  useEffect(() => {
+    localStorage.setItem("tanya-draft", draftContent);
+  }, [draftContent]);
+
+  useEffect(() => {
+    localStorage.setItem("tanya-chapters", JSON.stringify(chapters));
+  }, [chapters]);
+
+  useEffect(() => {
+    localStorage.setItem("tanya-active-chapter", activeChapterId);
+  }, [activeChapterId]);
 
   const activeChapter = chapters.find((c) => c.id === activeChapterId) || chapters[0];
 
@@ -89,6 +117,28 @@ const Index = () => {
     );
   };
 
+  const handleExportStory = () => {
+    let fileContent = "# For Tanya\n\n";
+    
+    chapters.forEach((chap) => {
+      fileContent += `## ${chap.title}\n\n`;
+      fileContent += chap.content ? `${chap.content}\n\n` : "*Empty chapter*\n\n";
+      fileContent += "---\n\n";
+    });
+
+    const blob = new Blob([fileContent], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "For_Tanya_Story.md";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showSuccess("Story downloaded to your device.");
+  };
+
   return (
     <div className="min-h-screen bg-rose-50 flex flex-col font-sans selection:bg-rose-200">
       {/* Top Navigation */}
@@ -101,8 +151,18 @@ const Index = () => {
             For Tanya
           </h1>
         </div>
-        <div className="text-sm font-medium text-rose-400 bg-rose-100/50 px-4 py-2 rounded-full">
-          Holding onto every word...
+        <div className="flex items-center gap-4">
+          <div className="hidden sm:block text-sm font-medium text-rose-400 bg-rose-100/50 px-4 py-2 rounded-full">
+            Holding onto every word...
+          </div>
+          <button
+            onClick={handleExportStory}
+            className="flex items-center gap-2 px-4 py-2 bg-white text-rose-600 hover:bg-rose-50 border border-rose-200 text-sm font-semibold rounded-full transition-all active:scale-95 shadow-sm"
+            title="Download your story as a file"
+          >
+            <Download size={16} />
+            <span>Download</span>
+          </button>
         </div>
       </header>
 
