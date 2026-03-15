@@ -71,7 +71,7 @@ const Index = () => {
             <Heart size={20} fill="currentColor" />
           </div>
           <h1 className="text-xl sm:text-2xl font-bold text-rose-950 tracking-tight font-serif italic">
-            For Tanya
+            For Mauryaa
           </h1>
         </div>
         <div className="text-sm font-medium text-rose-400 bg-rose-100/50 px-4 py-1.5 rounded-full flex items-center gap-2">
